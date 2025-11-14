@@ -9,6 +9,7 @@ from web3 import Web3, HTTPProvider
 import os
 import pickle
 
+
 app = Flask(__name__)
 
 UPLOAD_FOLDER = 'static/report'
@@ -17,26 +18,77 @@ global userid, hospital, pnameValue, pdateValue
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def readDetails(contract_type):
+    """
+    Defensive readDetails:
+    - Uses BLOCKCHAIN_RPC_URL (env or fallback)
+    - short timeout so cloud doesn't hang
+    - checks Report.json exists
+    - catches errors and RETURNS an empty string on failure (never raises)
+    """
     global details
     details = ""
-    print(contract_type+"======================")
-    blockchain_address = 'http://127.0.0.1:7545' #Blokchain connection IP
-    web3 = Web3(HTTPProvider(BLOCKCHAIN_RPC_URL))
-    web3.eth.defaultAccount = web3.eth.accounts[0]
-    compiled_contract_path = 'Report.json' 
-    deployed_contract_address = '0x5FbDB2315678afecb367f032d93F642f64180aa3' #hash address to access EHR contract
-    with open(compiled_contract_path) as file:
-        contract_json = json.load(file)  # load contract info as JSON
-        contract_abi = contract_json['abi']  # fetch contract's abi - necessary to call its functions
-    file.close()
-    contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi) #now calling contract to access data
-    if contract_type == 'hospital':
-        details = contract.functions.getHospital().call() #call getHospital function to access all hospital details
-    if contract_type == 'patient':
-        details = contract.functions.getPatient().call()
-    if contract_type == 'prescription':
-        details = contract.functions.getPrescription().call()    
-    print(details)    
+
+    try:
+        # Use env var if set (make sure you set BLOCKCHAIN_RPC_URL in Render env)
+        blockchain_url = os.environ.get('BLOCKCHAIN_RPC_URL', 'http://127.0.0.1:7545')
+        provider = HTTPProvider(blockchain_url, request_kwargs={"timeout": 3})
+        web3 = Web3(provider)
+
+        # quick connectivity test
+        try:
+            connected = web3.is_connected()
+        except Exception:
+            try:
+                connected = web3.isConnected()
+            except Exception:
+                connected = False
+
+        if not connected:
+            print(f"readDetails: RPC not reachable at {blockchain_url}")
+            details = ""
+            return details
+
+        # ensure contract json exists at repo root
+        compiled_contract_path = 'Report.json'
+        if not os.path.exists(compiled_contract_path):
+            print("readDetails: Report.json not found at", compiled_contract_path)
+            details = ""
+            return details
+
+        with open(compiled_contract_path, 'r') as file:
+            contract_json = json.load(file)
+            contract_abi = contract_json.get('abi')
+
+        if not contract_abi:
+            print("readDetails: ABI missing in Report.json")
+            details = ""
+            return details
+
+        # contract address: prefer env override
+        deployed_contract_address = os.environ.get(
+            'DEPLOYED_CONTRACT_ADDRESS',
+            '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+        )
+
+        contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+
+        if contract_type == 'hospital':
+            details = contract.functions.getHospital().call()
+        elif contract_type == 'patient':
+            details = contract.functions.getPatient().call()
+        elif contract_type == 'prescription':
+            details = contract.functions.getPrescription().call()
+        else:
+            details = ""
+
+        print("readDetails: success for", contract_type)
+        return details
+
+    except Exception as e:
+        # never let exceptions bubble to Flask view — log and return empty
+        print("readDetails: exception:", repr(e))
+        details = ""
+        return details    
 
 def saveDataBlockChain(currentData, contract_type):
     global details
