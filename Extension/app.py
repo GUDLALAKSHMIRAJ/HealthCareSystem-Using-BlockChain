@@ -317,34 +317,58 @@ def PatientLoginAction():
             return render_template('PatientLogin.html', data=context) 
 
 
+from flask import render_template, request, redirect, url_for  # make sure these are imported near top of file
+
 @app.route('/AddDoctorAction', methods=['GET', 'POST'])
 def AddDoctorAction():
-    if request.method == 'POST':
-        user = request.form['t1']
-        password = request.form['t2']
-        email = request.form['t3']
-        contact = request.form['t4']
-        qualification = request.form['t5']
-        experience = request.form['t6']
-        hospital = request.form['t7']
-        address = request.form['t8']
-        record = 'none'
-        readDetails("hospital")
-        rows = details.split("\n")
-        for i in range(len(rows)-1):
-            arr = rows[i].split("#")
-            if arr[0] == "hospital":
-                if arr[1] == user:
-                    record = "exists"
-                    break
-        if record == 'none':
+    # Serve the form on GET
+    if request.method == 'GET':
+        return render_template('AddDoctor.html')
+
+    # POST: form submitted
+    try:
+        user = request.form.get('t1', '').strip()
+        password = request.form.get('t2', '').strip()
+        email = request.form.get('t3', '').strip()
+        contact = request.form.get('t4', '').strip()
+        qualification = request.form.get('t5', '').strip()
+        experience = request.form.get('t6', '').strip()
+        hospital = request.form.get('t7', '').strip()
+        # your template uses t9 for address now:
+        address = request.form.get('t9', '').strip()
+
+        # basic validation
+        if not user or not password:
+            return render_template('AddDoctor.html', data='Username and password are required.')
+
+        # read existing details (attempt to use readDetails if available)
+        try:
+            details_text = readDetails("hospital") or ""
+        except Exception:
+            details_text = globals().get('details', '') or ""
+
+        # check for existing username
+        record_exists = False
+        for row in details_text.splitlines():
+            if not row:
+                continue
+            arr = row.split("#")
+            if len(arr) >= 2 and arr[0] == "hospital" and arr[1] == user:
+                record_exists = True
+                break
+
+        if not record_exists:
             data = "hospital#"+user+"#"+password+"#"+contact+"#"+email+"#"+address+"#"+qualification+"#"+experience+"#"+hospital+"\n"
-            saveDataBlockChain(data,"hospital")
-            context= 'New Doctor & Hospital details saved in Blockchain'
-            return render_template('AddDoctor.html', data=context)
+            saveDataBlockChain(data, "hospital")
+
+            # THIS LINE forces the browser to open the URL /AddDoctorAction after submit
+            return redirect(url_for('AddDoctorAction'))
+
         else:
-            context= user+' Username already exists'
-            return render_template('AddDoctor.html', data=context)
+            return render_template('AddDoctor.html', data=f"{user} Username already exists")
+
+    except Exception as e:
+        return render_template('AddDoctor.html', data=f"Server error: {e}")
             
         
 @app.route('/DoctorLoginAction', methods=['GET', 'POST'])
@@ -388,6 +412,12 @@ def home():
 def AdminScreen():
     if request.method == 'GET':
        return render_template('AdminScreen.html', msg='')
+    
+@app.route('/AddDoctor', methods=['GET'])
+def AddDoctor():
+    # serve the AddDoctor form when user clicks the navbar link
+    return render_template('AddDoctor.html')
+
 
 @app.route('/DoctorLogin', methods=['GET', 'POST'])
 def DoctorLogin():
