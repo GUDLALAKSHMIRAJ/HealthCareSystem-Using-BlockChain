@@ -1,3 +1,7 @@
+﻿# --- env blockchain url (so cloud services can configure RPC) ---
+import os
+BLOCKCHAIN_RPC_URL = os.environ.get('BLOCKCHAIN_RPC_URL', 'http://127.0.0.1:7545')
+# --- end snippet ---
 from flask import Flask, render_template, request
 from datetime import date
 import json
@@ -17,7 +21,7 @@ def readDetails(contract_type):
     details = ""
     print(contract_type+"======================")
     blockchain_address = 'http://127.0.0.1:7545' #Blokchain connection IP
-    web3 = Web3(HTTPProvider(blockchain_address))
+    web3 = Web3(HTTPProvider(BLOCKCHAIN_RPC_URL))
     web3.eth.defaultAccount = web3.eth.accounts[0]
     compiled_contract_path = 'Report.json' 
     deployed_contract_address = '0x5FbDB2315678afecb367f032d93F642f64180aa3' #hash address to access EHR contract
@@ -39,7 +43,7 @@ def saveDataBlockChain(currentData, contract_type):
     global contract
     details = ""
     blockchain_address = 'http://127.0.0.1:7545' #Blockchain connection IP
-    web3 = Web3(HTTPProvider(blockchain_address))
+    web3 = Web3(HTTPProvider(BLOCKCHAIN_RPC_URL))
     web3.eth.defaultAccount = web3.eth.accounts[0]
     compiled_contract_path = 'Report.json' 
     deployed_contract_address = '0x5FbDB2315678afecb367f032d93F642f64180aa3' #contract address
@@ -465,3 +469,4 @@ def PatientSignup():
         
 if __name__ == '__main__':
     app.run(debug=True)       
+
