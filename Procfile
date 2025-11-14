@@ -1,1 +1,1 @@
-﻿web: gunicorn Extension.app:app
+web: gunicorn Extension.app:app
